@@ -1,0 +1,119 @@
+---
+title: "Weekly meal packet"
+author: Michael E. Colvin
+date: 2016
+output:
+  html_document:
+    theme: flatly
+    highlight: espresso
+    toc: FALSE
+---
+
+
+<!--
+rmarkdown::render('weekly-menu.Rmd')
+-->
+
+
+```{r, echo=FALSE, results="hide",message=FALSE,warning=FALSE}
+
+library(reshape2)
+library(plyr)
+library(knitr)
+library(xlsx)
+
+# RECIPES, INSTRUCTIONS
+dat<- read.xlsx("./dat/random-meals-v04.xlsx",sheetName="data")
+
+# EACH MEAL
+meals_meta<- read.xlsx("./dat/random-meals-v04.xlsx",sheetName="meta-data")
+names(dat)<- tolower(names(dat))
+
+# mealId 0 is for weekly staples
+
+## SELECT MEALS
+weeklyMeals<-data.frame(
+    order=c(1:7),
+    day=c('S','M','T','W','R','F','S'),
+    id=c(26,31,1,4,30,16,17))
+
+dat<- subset(dat,id %in% c(0,weeklyMeals$id))
+meals<- subset(dat, type=="NAME" & id>0)
+```
+
+## The Meals for the week are:
+
+```{r, echo=FALSE}
+weeklyMeals<- merge(weeklyMeals, 
+    meals_meta[,c(1,2,10,11)],
+    by="id")
+weeklyMeals<- weeklyMeals[order(weeklyMeals$order),]
+kable(weeklyMeals[,-c(1,2)],
+    col.names = c("Day","Meal Name",
+        "Notes","Weekend Prep"),
+    row.names=FALSE)
+
+```
+
+
+
+# Recipes
+
+
+```{r, results="asis", echo=FALSE}
+
+id<- unique(dat$id)
+id<-id[id>0]
+for(i in 1:length(id))
+    {
+  # recipe name
+    cat(paste ("##", dat[dat$type=="NAME" & 
+      dat$id==id[i],]$description,"  \n"))#;cat{"\n"}
+    cat("### Ingredients\n")
+    
+    ingred<-dat[dat$type=="INGREDIENTS" & 
+      dat$id==id[i],]
+   gl<- paste("*",ingred$value, ingred$measure, 
+      ingred$description,"\n")
+    cat(gl)
+    cat("\n")
+   
+   # DIRECTIONS
+    cat("### Directions\n")
+   dirs<-dat[dat$type=="INSTRUCTIONS" & 
+      dat$id==id[i],]
+   dirss<- paste("1. ",dirs$description,"\n\n",sep="")#dirs$value,
+   cat(dirss)
+   cat("\n")
+    }
+
+
+
+```
+
+<p style="page-break-after:always;"> </p>
+
+## Grocery list
+
+```{r, results="asis", echo=FALSE,warning=FALSE}
+groceries<- subset(dat, type=="INGREDIENTS")
+groceries$grouporder<- as.numeric(as.character(groceries$grouporder))
+groceries$description<- sapply(1:nrow(groceries),function(x)
+      {
+    unlist(strsplit(
+      as.character(groceries$description[x]),","))[1]
+      })
+  
+out<-dcast(groceries, grouporder+description+measure~"total",
+           value.var="value", sum, subset=.(grouporder>0))
+out<- out[order(out$grouporder),]
+write.csv(out,'./output/keep-out.csv')
+gl<- paste(out$description, out$measure, out$total)
+gl<- as.data.frame(matrix(gl,ncol=2,byrow=FALSE))
+names(gl)<-c("Items","Items")
+kable(gl)
+#cat(gl)
+```
+
+
+
